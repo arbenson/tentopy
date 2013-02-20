@@ -22,11 +22,11 @@ def approx_eval(T, v):
   output:
    approximate eigenvalue T(v, v, v)
   """
+  # TODO: change this for an arbitrary order tensor
   return np.dot(np.tensordot(T, np.outer(v, v)), v)
 
 def tensor_outer(v, n):
-  """
-  Compute a rank-1 order-n (n > 1) tensor computation by outer products.
+  """ Compute a rank-1 order-n (n > 1) tensor computation by outer products.
   
   input: v the basis vector
   output: \otimes^3 v
