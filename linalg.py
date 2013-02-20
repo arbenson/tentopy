@@ -40,9 +40,6 @@ def power_method(T, L, N):
   """ Main power method driver.  Computes the (eigenvalue, eigenvector) pair
   of a tensor corresponding to the largest eigenvalue.
   
-  TODO:
-    - support arbitrary-order tensors (currently only support for order 3)
-  
   inputs:
   T: a super-symmetric tensor
   L: number of inner iterations of power method to perform
@@ -54,10 +51,12 @@ def power_method(T, L, N):
        deflated tensor)
   """
   k = T.shape[0]
+  n = len(T.shape)
   thetas = []
 
   def inner_iter(N, theta):
     for t in xrange(N):
+      # TODO: change this for arbitrary-order tensor
       next_iter = np.tensordot(T, np.outer(theta, theta))
       theta = next_iter / np.linalg.norm(next_iter, 2)
     return theta.T
@@ -72,7 +71,7 @@ def power_method(T, L, N):
   ind = np.argmax([approx_eval(T, theta) for theta in thetas])
   theta_hat = inner_iter(N, thetas[ind])
   lambda_hat = approx_eval(T, theta_hat)
-  rank1_approx = lambda_hat * tensor_outer(theta_hat, 3)
+  rank1_approx = lambda_hat * tensor_outer(theta_hat, n)
 
   return theta_hat, lambda_hat, T - rank1_approx
 
@@ -87,10 +86,7 @@ def eig(T, L=10, N=10):
   outputs:
   a tuple of eigenvectors and eigenvalues
   """
-  # TODO: extend to support order-n tensors instead of just order-3
-  if len(T.shape) != 3:
-    raise Exception('Only supporting order-3 tensors for now')
-  if not (T.shape[0] == T.shape[1] == T.shape[2]):
+  if sum([d == T.shape[0] for d in T.shape]) != len(T.shape):
     raise Exception('Each tensor dimension must be the same')
   k = T.shape[0]
   evecs = []
@@ -102,9 +98,8 @@ def eig(T, L=10, N=10):
   return np.array(evecs), evals
 
 if __name__ == '__main__':
-  T = tensor_outer(np.zeros(4), 3)
-  T[0][0][0] = 100
-  T[1][1][1] = 200
-  T[2][2][2] = 50
-  T[3][3][3] = 75
+  N = 75
+  T = tensor_outer(np.zeros(N), 3)
+  for j in xrange(N):
+    T[j][j][j] = j * N + 1
   print eig(T)
