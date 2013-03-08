@@ -25,6 +25,17 @@ def approx_eval(T, v):
   # TODO: change this for an arbitrary order tensor
   return np.dot(np.tensordot(T, np.outer(v, v)), v)
 
+# TODO: rename
+def tensor_outer2(u, v, w):
+  """ Compute a rank-1 tensor.
+  
+  input: u, v, w are vectors of the same length
+  output: u \otimes v \otimes w
+  """
+  T = np.outer(w, np.outer(u, v))
+  return T.reshape([len(u)] * 3)
+
+# TODO: rename
 def tensor_outer(v, n):
   """ Compute a rank-1 order-n (n > 1) tensor computation by outer products.
   
@@ -95,7 +106,7 @@ def eig(T, L=10, N=10):
     evec, eval, def_T = power_method(T if i == 0 else def_T, L, N)
     evecs.append(list(evec))
     evals.append(eval)
-  return np.array(evecs), evals
+  return np.array(evecs), np.array(evals)
 
 if __name__ == '__main__':
   N = 75
