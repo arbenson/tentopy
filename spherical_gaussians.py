@@ -56,3 +56,4 @@ print A
 evecs, evals = la.eig(M3, 100, 100)
 print evals[0:2]
 print evecs[0:2,:].T
+# test
