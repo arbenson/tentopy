@@ -22,7 +22,6 @@ def approx_eval(T, v):
   output:
    approximate eigenvalue T(v, v, v)
   """
-  # TODO: change this for an arbitrary order tensor
   return np.dot(np.tensordot(T, np.outer(v, v)), v)
 
 # TODO: rename
@@ -67,7 +66,6 @@ def power_method(T, L, N):
 
   def inner_iter(N, theta):
     for t in xrange(N):
-      # TODO: change this for arbitrary-order tensor
       next_iter = np.tensordot(T, np.outer(theta, theta))
       theta = next_iter / np.linalg.norm(next_iter, 2)
     return theta.T
