@@ -36,7 +36,7 @@ class ESTMDataGen:
     cross = la.tensor_outer(np.zeros(self.d), 3)
     for p in xrange(n):
       i, j, k = self.triple_draw()
-      cross[i, j, k] += 1
+      cross[i, j, k] += 1.
     cross /= n
     return cross
 
