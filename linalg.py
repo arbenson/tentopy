@@ -10,6 +10,39 @@ by Anandkumar et al.
 """
 
 import numpy as np
+import math
+
+def whiten(M2, M3):
+  """ Form the pseudo-whitening matrix of M2 and apply to M3 to form \tilde{M3}.
+  To pseudo-whitening matrix is formed by a thresholding eigenvalue
+  decomposition.  If M2 = UDU^T, then form [D']_i = max(abs([D]_i), \epsilon).
+
+  inputs:
+  M2: the second-order moment matrix
+  M3: the third-order moment matrix
+  
+  outputs:
+  W: the pseud-whitening matrix
+  \tilde{M3}: M3(W, W, W)
+  """
+  evals, evecs = np.linalg.eig(M2)
+  wp = np.diag([1./math.sqrt(max(abs(w), 10e-8)) for w in evals])
+  W = evecs * wp
+  
+  # now apply W in all directions to M3
+  # TODO: use np dot products
+  N1 = W.shape[1]
+  N2 = M3.shape[0]
+  X3 = tensor_outer(np.zeros(N1), 3)
+
+  for i1 in xrange(N1):
+    for i2 in xrange(N1):
+      for i3 in xrange(N1):
+        for j1 in xrange(N2):
+          for j2 in xrange(N2):
+            for j3 in xrange(N2):
+              X3[i1, i2, i3] += M3[j1, j2, j3] * W[j1, i1] * W[j2, i2] * W[j3, i3]
+  return W, X3
 
 def approx_eval(T, v):
   """ Compute the approximate eigenvalue corresponding to an approximate
@@ -46,7 +79,7 @@ def tensor_outer(v, n):
     T = np.outer(v, T)
   return T.reshape([len(v)] * n)
 
-def power_method(T, L, N):
+def power_method(T, L, N, norm_type=2):
   """ Main power method driver.  Computes the (eigenvalue, eigenvector) pair
   of a tensor corresponding to the largest eigenvalue.
   
@@ -67,13 +100,13 @@ def power_method(T, L, N):
   def inner_iter(N, theta):
     for t in xrange(N):
       next_iter = np.tensordot(T, np.outer(theta, theta))
-      theta = next_iter / np.linalg.norm(next_iter, 2)
+      theta = next_iter / np.linalg.norm(next_iter, norm_type)
     return theta.T
 
   for tau in xrange(L):
     # Choose a starting vector unfiormly at random from unit ball
     v = np.random.randn(k)
-    theta_0 = v / np.linalg.norm(v, 2)
+    theta_0 = v / np.linalg.norm(v, n)
     theta_0 = theta_0.reshape((k, 1))
     thetas.append(inner_iter(N, theta_0))
 
@@ -84,7 +117,7 @@ def power_method(T, L, N):
 
   return theta_hat, lambda_hat, T - rank1_approx
 
-def eig(T, L=10, N=10):
+def eig(T, L=10, N=10, norm_type=2):
   """ Compute the eigen-decomposition of a super-symmetric tensor.
 
   inputs:
@@ -101,14 +134,27 @@ def eig(T, L=10, N=10):
   evecs = []
   evals = []
   for i in xrange(k):
-    evec, eval, def_T = power_method(T if i == 0 else def_T, L, N)
+    evec, eval, def_T = power_method(T if i == 0 else def_T, L, N, norm_type)
     evecs.append(list(evec))
     evals.append(eval)
   return np.array(evecs), np.array(evals)
 
 if __name__ == '__main__':
-  N = 75
+  #N = 20
+  #T = tensor_outer(np.zeros(N), 3)
+
+  #for j in xrange(N):
+  #  T[j][j][j] = j * N + 1
+  #print eig(T, norm_type=1)
+
+  N = 5
   T = tensor_outer(np.zeros(N), 3)
+  Q, _ = np.linalg.qr(np.random.rand(N, N))
   for j in xrange(N):
-    T[j][j][j] = j * N + 1
-  print eig(T)
+    #u = np.random.rand(N)
+    #u /= np.linalg.norm(u, 2)
+    u = Q[:, j]
+    eval = j * 10 + 1
+    T += eval * tensor_outer(u, 3)
+    print eval, u
+  print eig(T, 20, 100, 2)
