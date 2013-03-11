@@ -34,23 +34,29 @@ class ESTMDataGen:
 
   def inner_gen_tensor(self, n):
     cross = la.tensor_outer(np.zeros(self.d), 3)
+    M2 = np.zeros((self.d, self.d))
     for p in xrange(n):
       i, j, k = self.triple_draw()
       cross[i, j, k] += 1.
+      M2[i, j] += 1
+    M2 /= n
     cross /= n
-    return cross
+    return M2, cross
 
   def gen_tensor(self, n):
     return self.inner_gen_tensor(n)
 
 w = [0.7, 0.3]
-A = np.array([[0.5, 0.2], [0.0, 0.8], [0.5, 0.], [0.0, 0.]])
+A = np.array([[1., 0.], [0., 1.], [0., 0.], [0., 0.]])
 g = ESTMDataGen(w, A)
-print A
 
 t0 = time.time()
-M3 = g.gen_tensor(1000000)
+M2, M3 = g.gen_tensor(10000)
+print M2
+print M3
+print np.linalg.eig(M2)
 evecs, evals = la.eig(M3, 25, 200)
+
 # normalized eigenvalues
 print evals[0:2] / sum(evals[0:2])
 for k in xrange(2):
