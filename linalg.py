@@ -12,6 +12,25 @@ by Anandkumar et al.
 import numpy as np
 import math
 
+def reconstruct(W, X3, L=25, N=20):
+  """ Reconstruct the eigenvalues and eigenvectors corresponding to the
+  probability distributions.
+
+  inputs:
+  W: the whitening matrix of M2
+  M3: the third-order moment matrix
+
+  outputs:
+  eigenvalues
+  eigenvectors
+  """
+  evecs, evals = eig(X3, L, N)
+  evals_rec = np.array([(1. / (w ** 2)) for w in evals])
+  evecs_rec = [np.linalg.solve(W.T, e * evecs[k, :]) for k, e in enumerate(evals)]
+  # now in reverse order
+  return evals_rec[::-1], np.array(evecs_rec[::-1])
+  
+
 def whiten(M2, M3):
   """ Form the pseudo-whitening matrix of M2 and apply to M3 to form \tilde{M3}.
   To pseudo-whitening matrix is formed by a thresholding eigenvalue
@@ -22,19 +41,20 @@ def whiten(M2, M3):
   M3: the third-order moment matrix
   
   outputs:
-  W: the pseud-whitening matrix
+  W: the pseudo-whitening matrix
   \tilde{M3}: M3(W, W, W)
   """
   evals, evecs = np.linalg.eig(M2)
-  wp = np.diag([1./math.sqrt(max(abs(w), 10e-8)) for w in evals])
-  W = evecs * wp
-  
+  wp = np.diag([1 / math.sqrt(max(abs(w), 10e-12)) for w in evals])
+  W = np.dot(evecs, wp)
+
   # now apply W in all directions to M3
   # TODO: use np dot products
   N1 = W.shape[1]
   N2 = M3.shape[0]
   X3 = tensor_outer(np.zeros(N1), 3)
 
+  # TODO: figure out the equivalent numpy routines
   for i1 in xrange(N1):
     for i2 in xrange(N1):
       for i3 in xrange(N1):
@@ -42,6 +62,7 @@ def whiten(M2, M3):
           for j2 in xrange(N2):
             for j3 in xrange(N2):
               X3[i1, i2, i3] += M3[j1, j2, j3] * W[j1, i1] * W[j2, i2] * W[j3, i3]
+
   return W, X3
 
 def approx_eval(T, v):
@@ -57,17 +78,6 @@ def approx_eval(T, v):
   """
   return np.dot(np.tensordot(T, np.outer(v, v)), v)
 
-# TODO: rename
-def tensor_outer2(u, v, w):
-  """ Compute a rank-1 tensor.
-  
-  input: u, v, w are vectors of the same length
-  output: u \otimes v \otimes w
-  """
-  T = np.outer(w, np.outer(u, v))
-  return T.reshape([len(u)] * 3)
-
-# TODO: rename
 def tensor_outer(v, n):
   """ Compute a rank-1 order-n (n > 1) tensor computation by outer products.
   
@@ -140,21 +150,9 @@ def eig(T, L=10, N=10, norm_type=2):
   return np.array(evecs), np.array(evals)
 
 if __name__ == '__main__':
-  #N = 20
-  #T = tensor_outer(np.zeros(N), 3)
-
-  #for j in xrange(N):
-  #  T[j][j][j] = j * N + 1
-  #print eig(T, norm_type=1)
-
-  N = 5
+  N = 20
   T = tensor_outer(np.zeros(N), 3)
-  Q, _ = np.linalg.qr(np.random.rand(N, N))
+
   for j in xrange(N):
-    #u = np.random.rand(N)
-    #u /= np.linalg.norm(u, 2)
-    u = Q[:, j]
-    eval = j * 10 + 1
-    T += eval * tensor_outer(u, 3)
-    print eval, u
-  print eig(T, 20, 100, 2)
+    T[j][j][j] = j * N + 1
+  print eig(T, norm_type=1)
