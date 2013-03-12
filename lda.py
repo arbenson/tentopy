@@ -4,6 +4,7 @@ import numpy as np
 import numpy.random as rand
 import linalg as la
 import time
+import math
 
 class LDADataGen:
   def __init__(self, alpha, A):
@@ -21,13 +22,14 @@ class LDADataGen:
     
     return len(self.cumw) - 1
 
+  # TODO: combine with doc_sample() and tools from estm
   def get_doc(self, h):
     unif_samp = rand.uniform(0, 1)
     for i, s in enumerate(np.cumsum(h)):
       if unif_samp <= s:
         return i
     
-    return len(self.cumw) - 1
+    return len(np.cumsum(h)) - 1
 
   def triple_draw(self):
     h = rand.dirichlet(self.alpha)
@@ -35,22 +37,21 @@ class LDADataGen:
     return [self.doc_sample(j) for k in xrange(3)]
 
   def compute_M3(self, cross, M1, x12_data, n):
-    M3 = la.tensor_outer(np.zeros(self.d), 3)
-    M3 += cross / n
     c = (2 * self.alpha_0 ** 2) / ((self.alpha_0 + 2) * (self.alpha_0 + 1))
-    M3 += c * la.tensor_outer(M1 / n, 3)
+    M3 = cross / n + c * la.tensor_outer(M1, 3)
  
+    M2 = np.outer(np.zeros(self.d), np.zeros(self.d))
     T = la.tensor_outer(np.zeros(self.d), 3)
     for i, j in x12_data:
-      x1 = np.eye(self.d)[i,:]
-      x2 = np.eye(self.d)[j,:]
-      T += la.tensor_outer2(x1, x2, M1)
-      T += la.tensor_outer2(x1, M1, x2)
-      T += la.tensor_outer2(M1, x1, x2)
-
+      M2[i, j] += 1.
+      T[i, j, :] += M1
+      T[i, :, j] += M1
+      T[:, i, j] += M1
     T /= n
-    M3 -= T * self.alpha_0 / (self.alpha_0 + 2)
-    return M3
+
+    M2 = M2 / n - (self.alpha_0 / (self.alpha_0 + 1)) * np.outer(M1, M1)
+    M3 -= (self.alpha_0 / (self.alpha_0 + 2)) * T
+    return M2, M3
 
   def inner_gen_tensor(self, n):
     cross = la.tensor_outer(np.zeros(self.d), 3)
@@ -63,21 +64,26 @@ class LDADataGen:
       M1[i] += 1.
       x12_data.append((i, j))
 
-    return self.compute_M3(cross, M1, x12_data, n)
+    M1 /= n
+
+    return self.compute_M3(np.copy(cross), np.copy(M1),
+                           x12_data, n)
 
   def gen_tensor(self, n):
     return self.inner_gen_tensor(n)
 
 
-alpha = [1, 25, 30]
-A = np.eye(4)[:, 0:3]
-g = LDADataGen(alpha, A)
 
-t0 = time.time()
-M3 = g.gen_tensor(100000)
-evecs, evals = la.eig(M3, 25, 200)
-# normalized eigenvalues
-print evals[0:3] / sum(evals[0:3])
-for k in xrange(3):
-  print evecs[k, :].T / np.linalg.norm(evecs[k, :], 1)
-print "time: ", time.time() - t0
+if __name__ == "__main__":
+  alpha = [1., 5., 8.]
+  alpha_0 = sum(alpha)
+  A = np.array([[0.6, 0.3, 0.2], [0.3, 0.2, 0.5], [0.2, 0.5, 0.3]])
+  g = LDADataGen(alpha, A)
+  
+  M2, M3 = g.gen_tensor(50000)
+  
+  W, X3 = la.whiten(M2, M3)
+  evals, evecs = la.reconstruct(W, X3)
+  print evals
+  print evecs
+
