@@ -7,30 +7,13 @@ import time
 import math
 
 def compute_data(M2, M3, w, A):
-  evecs, evals = la.eig(M3, 20, 200)
-  evals = evals / sum(evals)
-  eval_error1 = [abs(w[i] - evals[i]) / abs(w[i]) for i in xrange(len(w))]
-  evec_error1 = [min(np.linalg.norm(A[:, i] - evecs[i, :], 2),
-                  np.linalg.norm(A[:, i] + evecs[i, :], 2))  for i in xrange(len(w))]
-
   W, X3 = la.whiten(M2, M3)
-  evecs, evals = la.eig(X3, 20, 200)
-  eval_real = np.array([(1. / eval) ** 2 for eval in evals])
-  eval_real = eval_real / sum(eval_real)
-  eval_real = eval_real[::-1]
+  evals, evecs = la.reconstruct(W, X3)
 
-  eval_error2 = [abs(w[i] - eval_real[i]) / abs(w[i]) for i in xrange(len(w))]
-  evec_error2 = []
-
-  for i in xrange(len(w)):
-    u = evecs[i, :]
-    u = np.linalg.solve(W.T, u) * evals[i]
-    exp_u = A[:, len(w) - i - 1]
-    evec_error2.append(min(np.linalg.norm(exp_u - u, 2), np.linalg.norm(exp_u + u, 2)))
-
-  return eval_error1, evec_error1, eval_error2, evec_error2
-
-
+  return ([abs(w[i] - evals[i]) / abs(w[i]) for i in xrange(len(w))],
+          [np.linalg.norm(evecs[i,:] - A[:, i], 2) / np.linalg.norm(evecs[i,:], 2) \
+               for i in xrange(A.shape[1])])
+    
 class SGDataGen:
   def __init__(self, w, A, sigma2, data_interval=1000, cov_perturb=None, noise=None):
     self.w = w
@@ -44,11 +27,10 @@ class SGDataGen:
       self.cov += cov_perturb
     self.noise = noise
 
-    self.eval_errors1 = []
-    self.evec_errors1 = []
-    self.eval_errors2 = []
-    self.evec_errors2 = []
+    self.eval_errs = []
+    self.evec_errs = []
 
+  # TODO: combine with equivalent form from other data generators
   def index_sample(self):
     unif_samp = rand.uniform(0, 1)
     for i, s in enumerate(self.cumw):
@@ -72,10 +54,9 @@ class SGDataGen:
     
     T = la.tensor_outer(np.zeros(self.d), 3)
     for i in xrange(self.d):
-      ei = np.eye(self.d)[i,:]
-      T += la.tensor_outer2(mean, ei, ei)
-      T += la.tensor_outer2(ei, mean, ei)
-      T += la.tensor_outer2(ei, ei, mean)
+      T[:, i, i] += mean
+      T[i, :, i] += mean
+      T[i, i, :] += mean
   
     eigs, _ = np.linalg.eig(cov)
     lambda_min = eigs[-1]
@@ -93,11 +74,9 @@ class SGDataGen:
       if (i+1) % self.data_interval == 0:
         print "\n computing data... %d" % (i+1)
         M2, M3 = self.compute_M2_M3(np.copy(cross), np.copy(M2), samples, n)
-        eval_error1, evec_error1, eval_error2, evec_error2 = compute_data(M2, M3, self.w, A)
-        self.eval_errors1.append(eval_error1)
-        self.evec_errors1.append(evec_error1)
-        self.eval_errors2.append(eval_error2)
-        self.evec_errors2.append(evec_error2)
+        eval_err, evec_err = compute_data(M2, M3, self.w, A)
+        self.eval_errs.append(eval_err)
+        self.evec_errs.append(evec_err)
 
     M2, M3 = self.compute_M2_M3(np.copy(cross), np.copy(M2), samples, n)
     return M2, M3
@@ -106,42 +85,41 @@ class SGDataGen:
     return self.inner_gen_tensor(n)
 
 
-w = [0.75, 0.25]
-A = np.eye(3)[:, 0:2]
-sigma2 = 4.
+if __name__ == "__main__":
+  w = [0.6, 0.3, 0.1]
+  A = np.array([[3.0, 5.0, 2.0], [1.0, 3.75, 4.0], [2.5, 0.5, 1.25]])
 
-eval1 = []
-evec1 = []
-eval2 = []
-evec2 = []
+  N = 10000
+  sigma2 = 2.
 
-for eps in [0, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1e-1, 1, 2, 3]:
-  cov_perturb = np.zeros((A.shape[0], A.shape[0]))
-  cov_perturb[0][0] += eps
-  cov_perturb[1][1] -= eps
-  cov_perturb[2][2] += 2 * eps
-  cov_perturb[0][1] = eps
-  cov_perturb[1][0] = eps
-  #cov_perturb = None
-
-  gamma = lambda x: eps * np.random.gamma(2., 2., A.shape[0])
-  #gamma = None
-
-  N = 200000
-  g = SGDataGen(w, A, sigma2, data_interval=N, cov_perturb=cov_perturb,
-                noise=gamma)
-  g.gen_tensor(N)
-  #print g.eval_errors1
-  #print g.evec_errors2
-  #print g.eval_errors1
-  #print g.evec_errors2
+  eval = []
+  evec = []
   
-  eval1.append(g.eval_errors1[0])
-  evec1.append(g.evec_errors1[0])
-  eval2.append(g.eval_errors2[0])
-  evec2.append(g.evec_errors2[0])
+  for eps in [0, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1e-1, 1, 2, 3, 4]:
+    eval_sum = np.zeros(len(w))
+    evec_sum = np.zeros(len(w))
+    num_trials = 12
+    for k in xrange(num_trials):
+      cov_perturb = np.zeros((A.shape[0], A.shape[0]))
+      cov_perturb[0][0] += eps
+      cov_perturb[1][1] += 2 * eps
+      cov_perturb[0][1] = eps
+      cov_perturb[1][0] = eps
+      #cov_perturb = None
+  
+      exponential = lambda x: eps * np.random.exponential(scale=1., size=A.shape[0])
+      #exponential = None
+  
+      g = SGDataGen(w, A, sigma2, data_interval=N, cov_perturb=cov_perturb,
+                    noise=exponential)
+      g.gen_tensor(N)
+      
+      eval_sum += g.eval_errs[0]
+      evec_sum += g.evec_errs[0]
+  
+    eval.append(list(eval_sum / num_trials))
+    evec.append(list(evec_sum / num_trials))
+  
+  print eval
+  print evec
 
-print eval1
-print evec1
-print eval2
-print evec2
