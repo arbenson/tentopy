@@ -49,7 +49,8 @@ class ESTMDataGen:
 
 if __name__ == "__main__":
   w = [0.5, 0.3, 0.2]
-  A = np.array([[0.6, 0.3, 0.2], [0.3, 0.2, 0.5], [0.2, 0.5, 0.3]])
+  #A = np.array([[0.6, 0.3, 0.2], [0.3, 0.2, 0.5], [0.2, 0.5, 0.3]])
+  A = np.array([[0.6, 0.3, 0.2], [0.3, 0.2, 0.5], [0.1, 0.5, 0.3]])
   #print "original weights:\n", w
   #print "original distribs:\n", A
 
@@ -57,9 +58,9 @@ if __name__ == "__main__":
   evec_errs = []
   conds = []
 
-  N = 100000
+  N = 50000
 
-  for eps in [1e-1, 1 - 1e-2, 1 - 1e-4, 1 - 1e-6, 1 - 1e-8, 1 - 1e-10, 1 - 1e-12]:
+  for eps in [0, 1e-1, 1 - 1e-2, 1 - 1e-4, 1 - 1e-6, 1 - 1e-8, 1 - 1e-10, 1 - 1e-12]:
     B = np.zeros((3, 3))
     B[:, 0:2] += A[:, 0:2]
     B[:, 2] += eps * A[:, 1] + (1 - eps) * A[:, 2]
@@ -75,9 +76,11 @@ if __name__ == "__main__":
       W, X3 = la.whiten(M2, M3)
       evals, evecs = la.reconstruct(W, X3)
 
-      eval_trial_err += np.array([abs(w[i] - evals[i]) / abs(w[i]) for i in xrange(len(w))])
-      evec_trial_err += np.array([np.linalg.norm(evecs[i,:] - B[:, i], 2) / np.linalg.norm(evecs[i,:], 2) \
-                                  for i in xrange(B.shape[1])])
+      eval_trial_err += np.array([abs(w[i] - evals[i]) / abs(w[i]) \
+                                      for i in xrange(len(w))])
+      evec_trial_err += np.array([np.linalg.norm(evecs[i,:] - B[:, i], 2) / \
+                                  np.linalg.norm(B[:, i], 2) \
+                                      for i in xrange(B.shape[1])])
 
     print "updating..."
     eval_errs.append(list(eval_trial_err / num_trials))
@@ -86,4 +89,3 @@ if __name__ == "__main__":
   print conds
   print eval_errs
   print evec_errs
-
